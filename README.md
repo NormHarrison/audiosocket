@@ -58,11 +58,11 @@ as soon as the application is called and starts sending/receiving audio, **one C
 
 I don't know C and I haven't looked through the of the application itself, so I'm not quite sure what could be causing this. Thankfully though there is a way around it.
 
-When AudioSocket is used like a channel driver, for example `Dial(AudioSocket/<uuid>/127.0.0.1:3278)`, CPU usage remains perfectly normal, but... depending on what the AudioSocket is going to bridged with (for example, a softphone connected via SIP), the audio sent to your server will no longer be in
+When AudioSocket is used like a channel driver, for example `Dial(AudioSocket/127.0.0.1:3278/<uuid>)`, CPU usage remains perfectly normal, but... depending on the other channel its going to be bridged with (for example, a softphone connected via SIP), the audio sent to your Audiosocket server instance will no longer be in
 16-bit, 8KHz, mono LE PCM format.
 
 *Instead...* It will be encoded and sent as whatever audio codec was agreed upon between the two channels. So in my experience, when a SIP softphone that uses the u-law (G.711) codec makes a call to a place in the Dialplan
-that eventually calls AudioSocket, the audio you will be sent will also be in encoded as u-law, which can be both a positive and negative. Due to Asterisk's ability to handle a
+that eventually invokes Audiosocket, the audio you will be sent will also be in encoded as u-law, which can be both a positive and negative. Due to Asterisk's ability to handle a
 wide range codecs and transcode between them though, I assume there is probably a way around this by manually setting the codec to use within the Dialplan, right before AudioSocket() is called, but I haven't experimented with that yet.
 
 Now with sending audio back to AudioSocket. Even though AudioSocket will send you audio in a different codec when brided with certain channels, **it still wants to receive
@@ -82,17 +82,17 @@ audiosocket.prepare_input()
 audiosocket.prepare_output()
 ```
 
-Keep in mind that inrate and channels must match the sample rate and number of channels of the audio data your writing.
-By default, CD quality audio is assumed (44000Hz, 16-bit stereo linear PCM), but you can change this to use whatever values audioop's `ratecv()` method supports:
+Keep in mind that the values to the `rate` and `channels` keyword arguments must match the sample rate and channel count of the audio data your providing.
+By default, CD quality audio is assumed (44000Hz, 16-bit stereo linear PCM), but you can change this to use whatever values audioop's `ratecv()` method accepts:
 ```python
-audiosocket.prepare_input(inrate=48000, channels=2)
+audiosocket.prepare_input(rate=48000, channels=2)
 ```
 
-For recieved audio, outrate and channels specifiy how you want the server to prepare audio before
+For recieved audio, `rate` and `channels` specifiy how you want the server to prepare audio before
 returning it to you via the read() method. The argument ulaw2lin is also available, this will convert audio data received in ULAW encoding from Asterisk
 to 8Khz, 16-bit mono linear PCM (which you can then upsample too if needed). This is very useful for when AudioSocket is bridged with SIP or IAX channels (which still commonly use ULAW encoding):
 ```python
-audiosocket.prepare_output(outrate=44000, channels=2, ulaw2lin=True)
+audiosocket.prepare_output(rate=44000, channels=2, ulaw2lin=True)
 ```
 Finally, you would then call the `listen()` method as normal.
 

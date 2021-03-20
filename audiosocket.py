@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from time import sleep
 
 # Audisocket connection class
-from .connection import *
+from connection import *
 
 
 
@@ -39,7 +39,7 @@ class Audiosocket:
     self.initial_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     self.initial_sock.bind((self.addr, self.port))
     self.initial_sock.settimeout(timeout)
-    self.initial_sock.listen(1)
+    self.initial_sock.listen(3)
 
     # If the user let the operating system choose a port (by passing in 0), then
     # the one it selected is available in this attribute
@@ -50,9 +50,9 @@ class Audiosocket:
   # Optionally prepares audio sent by the user to
   # the specifications needed by audiosocket (16-bit, 8KHz mono LE PCM).
   # Audio sent in must be in PCM or ULAW format
-  def prepare_input(self, inrate=44000, channels=2, ulaw2lin=False):
+  def prepare_input(self, rate=44000, channels=2, ulaw2lin=False):
     self.user_resample = audioop_struct(
-      rate = inrate,
+      rate = rate,
       channels = channels,
       ulaw2lin = ulaw2lin,
       ratecv_state = None,
@@ -62,9 +62,9 @@ class Audiosocket:
 
   # Optionally prepares audio sent by audiosocket to
   # the specifications of the user
-  def prepare_output(self, outrate=44000, channels=1, ulaw2lin=False):
+  def prepare_output(self, rate=44000, channels=1, ulaw2lin=False):
     self.asterisk_resample = audioop_struct(
-      rate = outrate,
+      rate = rate,
       channels = channels,
       ulaw2lin = ulaw2lin,
       ratecv_state = None,
@@ -73,15 +73,15 @@ class Audiosocket:
 
 
   def listen(self):
-    conn, peer_addr = self.initial_sock.accept()
-    connection = Connection(
-      conn,
+    conn_sock, peer_addr = self.initial_sock.accept()
+    call_conn = Connection(
+      conn_sock,
       peer_addr,
       self.user_resample,
       self.asterisk_resample,
     )
 
-    connection_thread = Thread(target=connection._process, args=())
-    connection_thread.start()
+    call_conn_thread = Thread(target=call_conn._process)
+    call_conn_thread.start()
 
-    return connection
+    return call_conn

@@ -17,8 +17,8 @@ audiosocket = Audiosocket(('0.0.0.0', 1121))
 'not a whole number of frames' error while reading data, please let
  me know if you encounter this excessively
 """
-audiosocket.prepare_output(outrate=44000, channels=2)
-audiosocket.prepare_input(inrate=44000, channels=2)
+audiosocket.prepare_output(rate=44000, channels=2)
+audiosocket.prepare_input(rate=44000, channels=2)
 
 
 # The port attribute is useful when you've let the operating system
@@ -36,7 +36,7 @@ def handle_connection(call):
     audio_data = call.read()
     call.write(audio_data)
 
-    # Hangup the call after receiving 1000 audio frames
+    # Hangup the call after receiving 1000 audio chunks
     if cntr == 1000:
       call.hangup()
 

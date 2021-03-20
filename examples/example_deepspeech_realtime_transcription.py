@@ -14,12 +14,12 @@ dp_model.enableExternalScorer('./deepspeech-0.9.3-models.scorer')
 
 
 # Create a new audisocket server instance
-audiosocket = Audiosocket(('127.0.0.1', 6781))
+audiosocket = Audiosocket(('127.0.0.1', 1234))
 
 # Since the pretrained DeepSpeech model expects 16000Hz 16-bit, mono PCM audio,
 # we need to instruct our audiosocket instance to upsample the incoming
 # telephone quality (8000Hz) audio for us, and leave the channel count as is
-audiosocket.prepare_output(outrate=16000, channels=1)
+audiosocket.prepare_output(rate=16000, channels=1)
 
 # Start listening for connections on the audiosocket server
 call_conn = audiosocket.listen()
