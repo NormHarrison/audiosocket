@@ -5,7 +5,7 @@ import numpy
 import deepspeech
 
 # Asterisk audiosocket module
-from audiosocket import *
+from audiosocket import audiosocket
 
 
 # Create a DeepSpeech model instance and prepare it for use
@@ -14,7 +14,7 @@ dp_model.enableExternalScorer('./deepspeech-0.9.3-models.scorer')
 
 
 # Create a new audisocket server instance
-audiosocket = Audiosocket(('127.0.0.1', 1234))
+audiosocket = AudiosSocketServer(('0.0.0.0', 1234))
 
 # Since the pretrained DeepSpeech model expects 16000Hz 16-bit, mono PCM audio,
 # we need to instruct our audiosocket instance to upsample the incoming
