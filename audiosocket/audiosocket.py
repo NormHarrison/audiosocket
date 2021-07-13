@@ -9,6 +9,13 @@ from enum import IntEnum
 # (8 * <number_of_bytes>) / (<sample_rate> * <bit_depth> * <channel_count>)
 
 
+# Acceptable values for the "encoding" parameter of the
+# "ResampleConfig" class.
+ENCODING_NONE = 0
+ENCODING_ULAW = 1
+ENCODING_ALAW = 2
+
+
 # The expected size of an AudioSocket message header in bytes.
 _HEADER_SIZE = 3
 
@@ -84,21 +91,43 @@ class MemoryError(_AsteriskError):
     super().__init__(peer_addr, "indicated a memory related error occurred")
 
 
+# Represents a configuration for resampling audio
+class ResampleConfig:
+
+  def __init__(self, rate, channels, encoding=ENCODING_NONE):
+
+    self._rate           = rate
+    self._resample_state = None
+    self._channels       = channels
+    self._encoding       = encoding
+
+
 # Represents an individual AudioSocket connection with an Asterisk channel.
 class _AudioSocketConnection:
 
   def __init__(self, new_conn):
 
-    self._conn_sock       = new_conn[0]
-    self._next_send_time  = 0
-    self._resample_input  = False
-    self._resample_output = False
+    self._conn_sock      = new_conn[0]
+    self._next_send_time = 0
+
+    self._resample_read_config  = None
+    self._resample_write_config = None
 
     self.peer_name = new_conn[1]
     self.uuid      = ""
     self.connected = True
 
     self.uuid = self._read_message(_PayloadTypes.UUID).hex()
+
+
+  def set_resample_read_config(self, config):
+
+    self._resample_read_config = config
+
+
+  def set_resample_write_config(self, config):
+
+    self._resample_write_config = config
 
 
   def _decode_and_raise_error(self, code):
@@ -119,6 +148,36 @@ class _AudioSocketConnection:
 
     else:
       raise UnknownError(self.peer_name[0], code)
+
+
+  def _resample_write(self, audio_data):
+
+    if self._resample_write_config._encoding == ENCODING_ULAW:
+      audio_data = audioop.ulaw2lin(audio_data, 2)
+
+    elif self._resample_write_config._encoding == ENCODING_ALAW:
+      audio_data = audioop.alaw2lin(audio_data, 2)
+
+
+    if self._resample_write_config._channels == 1:
+      audio_data = audioop.tomono(audio_data, 2, 1, 1)
+
+
+    if self._resample_write_config._rate != 8000:
+
+      resample_tuple = audioop.ratecv(
+        fragment  = audio_data,
+        width     = 2,
+        nchannels = 1,
+        inrate    = self._resample_write_config._rate,
+        outrate   = 8000,
+        state     = self._resample_write_config.resample_state
+      )
+
+      audio_data                                 = resample_tuple[0]
+      self._resample_write_config.resample_state = resample_tuple[1]
+
+    return audio_data
 
 
   def _write_message(self, payload_type, payload):
@@ -157,14 +216,49 @@ class _AudioSocketConnection:
 
     while True:
 
-      self._write_message (_PayloadTypes.AUDIO,
-      audio_data[start_index:end_index])
+      if self._resample_write_config != None:
+        audio_data = self._resample_write(audio_data)
+
+      self._write_message(
+        _PayloadTypes.AUDIO,
+        audio_data[start_index:end_index]
+      )
 
       if end_index >= byte_count:
         break
 
       start_index  = end_index
       end_index   += end_index
+
+
+  def _resample_read(self, audio_data):
+
+    if self._resample_read_config._encoding == ENCODING_ULAW:
+      audio_data = audioop.ulaw2lin(audio_data, 2)
+
+    elif self._resample_read_config._encoding == ENCODING_ALAW:
+      audio_data = audioop.alaw2lin(audio_data, 2)
+
+
+    if self._resample_read_config._channels == 2:
+      audio_data = audioop.tostereo(audio_data, 2, 1, 1)
+
+
+    if self._resample_read_config._rate != 8000:
+
+      resample_tuple = audioop.ratecv(
+        fragment  = audio_data,
+        width     = 2,
+        nchannels = 1,
+        inrate    = 8000,
+        outrate   = self._resample_read_config._rate,
+        state     = self._resample_read_config.resample_state
+      )
+
+      audio_data                                = resample_tuple[0]
+      self._resample_read_config.resample_state = resample_tuple[1]
+
+    return audio_data
 
 
   def _read_message(self, expected_type):
@@ -216,7 +310,13 @@ class _AudioSocketConnection:
 
   def read(self):
 
-    return self._read_message(_PayloadTypes.AUDIO)
+    audio_data = self._read_message(_PayloadTypes.AUDIO)
+
+    if self._resample_read_config != None:
+      return self._resample_read(audio_data)
+
+    else
+      return audio_data
 
 
   def hangup(self):
